@@ -8,7 +8,7 @@ A self-hosted PWA terminal that gives you a real, persistent shell on your Linux
 
 ```bash
 sudo apt install build-essential tmux
-node --version   # must be 18+
+node --version   # must be 22.12+ (required by the Vite 8 / Vitest 5 build and test tooling)
 ```
 
 ### Setup
