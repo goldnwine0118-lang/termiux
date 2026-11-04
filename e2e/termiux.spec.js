@@ -45,19 +45,33 @@ test.describe('key row', () => {
 
 test.describe('reconnect overlay', () => {
   test('reconnect overlay appears when WS is closed', async ({ page }) => {
+    // Record every WebSocket the page opens so the test can close the
+    // terminal's socket without the app shipping a test-only global.
+    await page.addInitScript(() => {
+      const NativeWS = window.WebSocket;
+      window.__openSockets = [];
+      window.WebSocket = class extends NativeWS {
+        constructor(...args) {
+          super(...args);
+          window.__openSockets.push(this);
+        }
+      };
+    });
+
     await page.goto('/login');
     await page.fill('input[type=password]', 'test-password');
     await page.click('button[type=submit]');
     await expect(page.locator('.xterm')).toBeVisible({ timeout: 5000 });
 
     // Force WebSocket close from the browser side
-    await page.evaluate(() => {
-      // Find the open WebSocket and close it
-      const origWS = window.WebSocket;
-      // Trigger close on all open sockets via a global trick:
-      // We expose the ws for testing via a dev-only global
-      if (window.__termiuxWs) window.__termiuxWs.close();
+    await page.waitForFunction(() =>
+      window.__openSockets.some((ws) => ws.readyState === WebSocket.OPEN));
+    const closed = await page.evaluate(() => {
+      const open = window.__openSockets.filter((ws) => ws.readyState === WebSocket.OPEN);
+      open.forEach((ws) => ws.close());
+      return open.length;
     });
+    expect(closed).toBeGreaterThan(0);
 
     // Overlay should appear (attempt 1)
     await expect(page.locator('text=Reconnecting')).toBeVisible({ timeout: 5000 });
